@@ -11,7 +11,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include <clang/Sema/DeclSpec.h>
+#include "clang/Sema/DeclSpec.h"
 #include "clang/Serialization/ASTWriter.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
@@ -439,12 +439,13 @@ void ASTStmtWriter::VisitConceptSpecializationExpr(
 
 void ASTStmtWriter::VisitRequiresExpr(RequiresExpr *E) {
   VisitExpr(E);
-  Record.AddSourceLocation(E->getRequiresKWLoc());
-  Record.AddDeclRef(E->getBody());
   Record.push_back(E->getLocalParameters().size());
+  Record.push_back(E->getRequirements().size());
+  Record.AddSourceLocation(E->getRequiresKWLoc());
+  Record.push_back(E->isSatisfied());
+  Record.AddDeclRef(E->getBody());
   for (ParmVarDecl *P : E->getLocalParameters())
     Record.AddDeclRef(P);
-  Record.push_back(E->getRequirements().size());
   for (Requirement *R : E->getRequirements()) {
     if (auto *TypeReq = dyn_cast<TypeRequirement>(R)) {
       Record.push_back(Requirement::RK_Type);

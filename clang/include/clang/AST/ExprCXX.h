@@ -4846,52 +4846,72 @@ public:
 ///     lookup (6.4) or by checking properties of types and expressions.
 ///     [...]
 ///     A requires-expression is a prvalue of type bool [...]
-class RequiresExpr final : public Expr {
-  bool IsSatisfied;
-  SourceLocation RequiresKWLoc;
+class RequiresExpr final : public Expr,
+    llvm::TrailingObjects<RequiresExpr, ParmVarDecl *, Requirement *> {
+  friend TrailingObjects;
+  friend class ASTStmtReader;
+
   RequiresExprBodyDecl *Body;
-  llvm::SmallVector<ParmVarDecl *, 2> LocalParameters;
-  llvm::SmallVector<Requirement *, 3> Requirements;
+  unsigned NumLocalParameters;
+  unsigned NumRequirements;
   SourceLocation RBraceLoc;
 
-public:
+  unsigned numTrailingObjects(OverloadToken<ParmVarDecl *>) const {
+    return NumLocalParameters;
+  }
+
+  unsigned numTrailingObjects(OverloadToken<Requirement *>) const {
+    return NumRequirements;
+  }
+
   RequiresExpr(ASTContext &C, SourceLocation RequiresKWLoc,
                RequiresExprBodyDecl *Body,
                ArrayRef<ParmVarDecl *> LocalParameters,
                ArrayRef<Requirement *> Requirements,
                SourceLocation RBraceLoc);
-  RequiresExpr(ASTContext &C, EmptyShell Empty) :
-    RequiresExpr(C, SourceLocation(), nullptr, {}, {}, SourceLocation()) {}
+  RequiresExpr(ASTContext &C, EmptyShell Empty, unsigned NumLocalParameters,
+               unsigned NumRequirements);
 
-  void setLocalParameters(ArrayRef<ParmVarDecl *> LocalParameters);
-  ArrayRef<ParmVarDecl *> getLocalParameters() const { return LocalParameters; }
+public:
+  static RequiresExpr *
+  Create(ASTContext &C, SourceLocation RequiresKWLoc,
+         RequiresExprBodyDecl *Body, ArrayRef<ParmVarDecl *> LocalParameters,
+         ArrayRef<Requirement *> Requirements, SourceLocation RBraceLoc);
+  static RequiresExpr *
+  Create(ASTContext &C, EmptyShell Empty, unsigned NumLocalParameters,
+         unsigned NumRequirements);
 
-  void setBody(RequiresExprBodyDecl *Body) { this->Body = Body; }
-  const RequiresExprBodyDecl *getBody() const { return Body; }
-  RequiresExprBodyDecl *getBody() { return Body; }
+  ArrayRef<ParmVarDecl *> getLocalParameters() const {
+    return {getTrailingObjects<ParmVarDecl *>(), NumLocalParameters};
+  }
 
-  void setRequirements(ArrayRef<Requirement *> Requirements);
-  ArrayRef<Requirement *> getRequirements() const { return Requirements; }
+  RequiresExprBodyDecl *getBody() const { return Body; }
+
+  ArrayRef<Requirement *> getRequirements() const {
+    return {getTrailingObjects<Requirement *>(), NumRequirements};
+  }
 
   /// \brief Whether or not the requires clause is satisfied.
   /// The expression must not be dependent.
   bool isSatisfied() const {
     assert(!isValueDependent()
            && "isSatisfied called on a dependent RequiresExpr");
-    return IsSatisfied;
+    return RequiresExprBits.IsSatisfied;
   }
 
-  SourceLocation getRequiresKWLoc() const { return RequiresKWLoc; }
-  void setRequiresKWLoc(SourceLocation Loc) { RequiresKWLoc = Loc; }
+  SourceLocation getRequiresKWLoc() const {
+    return RequiresExprBits.RequiresKWLoc;
+  }
 
   SourceLocation getRBraceLoc() const { return RBraceLoc; }
-  void setRBraceLoc(SourceLocation Loc) { RBraceLoc = Loc; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == RequiresExprClass;
   }
 
-  SourceLocation getBeginLoc() const LLVM_READONLY { return RequiresKWLoc; }
+  SourceLocation getBeginLoc() const LLVM_READONLY {
+    return RequiresExprBits.RequiresKWLoc;
+  }
   SourceLocation getEndLoc() const LLVM_READONLY {
     return RBraceLoc;
   }
@@ -4899,6 +4919,9 @@ public:
   // Iterators
   child_range children() {
     return child_range(child_iterator(), child_iterator());
+  }
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
   }
 };
 

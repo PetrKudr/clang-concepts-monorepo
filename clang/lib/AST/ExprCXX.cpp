@@ -33,6 +33,7 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Overload.h"
+#include "clang/Sema/Lookup.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -40,7 +41,6 @@
 #include <cstddef>
 #include <cstring>
 #include <memory>
-#include <clang/Sema/Lookup.h>
 
 using namespace clang;
 
@@ -1759,17 +1759,11 @@ RequiresExpr::RequiresExpr(ASTContext &C, SourceLocation RequiresKWLoc,
                            SourceLocation RBraceLoc)
   : Expr(RequiresExprClass, C.BoolTy, VK_RValue, OK_Ordinary,
          /*TD=*/false, /*VD=*/false, /*ID=*/false,
-         /*ContainsUnexpandedParameterPack=*/false), IsSatisfied(false),
-    RequiresKWLoc(RequiresKWLoc), Body(Body), RBraceLoc(RBraceLoc) {
-  setLocalParameters(LocalParameters);
-  setRequirements(Requirements);
-}
-
-void RequiresExpr::setLocalParameters(ArrayRef<ParmVarDecl *> LocalParameters) {
-  assert(this->LocalParameters.empty() && !isInstantiationDependent()
-         && !containsUnexpandedParameterPack() &&
-         "setLocalParameters must be called before setRequirements and may not "
-         "be called twice");
+         /*ContainsUnexpandedParameterPack=*/false),
+    NumLocalParameters(LocalParameters.size()),
+    NumRequirements(Requirements.size()), Body(Body), RBraceLoc(RBraceLoc) {
+  RequiresExprBits.IsSatisfied = false;
+  RequiresExprBits.RequiresKWLoc = RequiresKWLoc;
   bool Dependent = false;
   bool ContainsUnexpandedParameterPack = false;
   for (ParmVarDecl *P : LocalParameters) {
@@ -1777,36 +1771,52 @@ void RequiresExpr::setLocalParameters(ArrayRef<ParmVarDecl *> LocalParameters) {
     ContainsUnexpandedParameterPack |=
         P->getType()->containsUnexpandedParameterPack();
   }
-  this->LocalParameters.assign(LocalParameters.begin(), LocalParameters.end());
+  RequiresExprBits.IsSatisfied = true;
+  for (Requirement *R : Requirements) {
+    Dependent |= R->isDependent();
+    ContainsUnexpandedParameterPack |= R->containsUnexpandedParameterPack();
+    if (!Dependent) {
+      RequiresExprBits.IsSatisfied = R->isSatisfied();
+      if (!RequiresExprBits.IsSatisfied)
+        break;
+    }
+  }
+  std::copy(LocalParameters.begin(), LocalParameters.end(),
+            getTrailingObjects<ParmVarDecl *>());
+  std::copy(Requirements.begin(), Requirements.end(),
+            getTrailingObjects<Requirement *>());
+  RequiresExprBits.IsSatisfied |= Dependent;
   setValueDependent(Dependent);
   setInstantiationDependent(Dependent);
   setContainsUnexpandedParameterPack(ContainsUnexpandedParameterPack);
 }
 
-void RequiresExpr::setRequirements(ArrayRef<Requirement *> Requirements) {
-  assert(this->Requirements.empty() && "setRequirements may only be called "
-                                       "once per object.");
-  bool Dependent = false;
-  bool ContainsUnexpandedParameterPack = false;
-  IsSatisfied = true;
-  for (Requirement *R : Requirements) {
-    Dependent |= R->isDependent();
-    ContainsUnexpandedParameterPack |= R->containsUnexpandedParameterPack();
-    if (!Dependent) {
-      IsSatisfied = R->isSatisfied();
-      if (!IsSatisfied)
-        break;
-    }
-  }
-  this->Requirements.assign(Requirements.begin(), Requirements.end());
-  IsSatisfied |= Dependent;
-  // SetLocalParameters may have been called and may have updated the
-  // flags
-  if (!isInstantiationDependent() && Dependent) {
-    setValueDependent(Dependent);
-    setInstantiationDependent(Dependent);
-  }
-  if (!containsUnexpandedParameterPack() && ContainsUnexpandedParameterPack) {
-    setContainsUnexpandedParameterPack(ContainsUnexpandedParameterPack);
-  }
+RequiresExpr::RequiresExpr(ASTContext &C, EmptyShell Empty,
+                           unsigned NumLocalParameters,
+                           unsigned NumRequirements)
+  : Expr(RequiresExprClass, Empty), NumLocalParameters(NumLocalParameters),
+    NumRequirements(NumRequirements) { }
+
+RequiresExpr *
+RequiresExpr::Create(ASTContext &C, SourceLocation RequiresKWLoc,
+                     RequiresExprBodyDecl *Body,
+                     ArrayRef<ParmVarDecl *> LocalParameters,
+                     ArrayRef<Requirement *> Requirements,
+                     SourceLocation RBraceLoc) {
+  void *Mem =
+      C.Allocate(totalSizeToAlloc<ParmVarDecl *, Requirement *>(
+                     LocalParameters.size(), Requirements.size()),
+                 alignof(RequiresExpr));
+  return new (Mem) RequiresExpr(C, RequiresKWLoc, Body, LocalParameters,
+                                Requirements, RBraceLoc);
+}
+
+RequiresExpr *
+RequiresExpr::Create(ASTContext &C, EmptyShell Empty,
+                     unsigned NumLocalParameters, unsigned NumRequirements) {
+  void *Mem =
+      C.Allocate(totalSizeToAlloc<ParmVarDecl *, Requirement *>(
+                     NumLocalParameters, NumRequirements),
+                 alignof(RequiresExpr));
+  return new (Mem) RequiresExpr(C, Empty, NumLocalParameters, NumRequirements);
 }

@@ -1039,10 +1039,10 @@ namespace {
 
     bool TransformRequiresExprRequirements(ArrayRef<Requirement *> Reqs,
         SmallVectorImpl<Requirement *> &Transformed) {
-      bool SatisfcationDetermined = false;
+      bool SatisfactionDetermined = false;
       for (Requirement *Req : Reqs) {
         Requirement *TransReq = nullptr;
-        if (!SatisfcationDetermined) {
+        if (!SatisfactionDetermined) {
           if (auto *TypeReq = dyn_cast<TypeRequirement>(Req))
             TransReq = TransformTypeRequirement(TypeReq);
           else if (auto *ExprReq = dyn_cast<ExprRequirement>(Req))
@@ -1057,7 +1057,7 @@ namespace {
             //   proceeds in lexical order and stops when a condition that
             //   determines the result of the requires-expression is
             //   encountered. [..]
-            SatisfcationDetermined = true;
+            SatisfactionDetermined = true;
         } else
           TransReq = Req;
         Transformed.push_back(TransReq);

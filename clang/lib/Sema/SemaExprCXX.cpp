@@ -8163,7 +8163,6 @@ Sema::CreateRequiresExpr(SourceLocation RequiresKWLoc,
                          ArrayRef<ParmVarDecl *> LocalParameters,
                          ArrayRef<Requirement *> Requirements,
                          SourceLocation ClosingBraceLoc) {
-  return new (Context) RequiresExpr(Context, RequiresKWLoc, Body,
-                                    LocalParameters, Requirements,
-                                    ClosingBraceLoc);
+  return RequiresExpr::Create(Context, RequiresKWLoc, Body, LocalParameters,
+                              Requirements, ClosingBraceLoc);
 }

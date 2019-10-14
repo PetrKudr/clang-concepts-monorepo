@@ -788,16 +788,16 @@ readSubstitutionDiagnostic(ASTRecordReader &Record) {
 
 void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
   VisitExpr(E);
-  SourceLocation RequiresKWLoc = Record.readSourceLocation();
-  E->setRequiresKWLoc(RequiresKWLoc);
-  auto *Body = cast<RequiresExprBodyDecl>(Record.readDecl());
-  E->setBody(Body);
   unsigned NumLocalParameters = Record.readInt();
+  unsigned NumRequirements = Record.readInt();
+  E->RequiresExprBits.RequiresKWLoc = Record.readSourceLocation();
+  E->RequiresExprBits.IsSatisfied = Record.readInt();
+  E->Body = Record.readDeclAs<RequiresExprBodyDecl>();
   llvm::SmallVector<ParmVarDecl *, 4> LocalParameters;
   for (unsigned i = 0; i < NumLocalParameters; ++i)
     LocalParameters.push_back(cast<ParmVarDecl>(Record.readDecl()));
-  E->setLocalParameters(LocalParameters);
-  unsigned NumRequirements = Record.readInt();
+  std::copy(LocalParameters.begin(), LocalParameters.end(),
+            E->getTrailingObjects<ParmVarDecl *>());
   llvm::SmallVector<Requirement *, 4> Requirements;
   for (unsigned i = 0; i < NumRequirements; ++i) {
     auto RK = static_cast<Requirement::RequirementKind>(Record.readInt());
@@ -884,9 +884,9 @@ void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
       continue;
     Requirements.push_back(R);
   }
-  E->setRequirements(Requirements);
-  SourceLocation RBraceLoc = Record.readSourceLocation();
-  E->setRBraceLoc(RBraceLoc);
+  std::copy(Requirements.begin(), Requirements.end(),
+            E->getTrailingObjects<Requirement *>());
+  E->RBraceLoc = Record.readSourceLocation();
 }
 
 void ASTStmtReader::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
@@ -3615,7 +3615,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     }
 
     case EXPR_REQUIRES:
-      S = new (Context) RequiresExpr(Context, Empty);
+      unsigned numLocalParameters = Record[ASTStmtReader::NumExprFields];
+      unsigned numRequirement = Record[ASTStmtReader::NumExprFields + 1];
+      S = RequiresExpr::Create(Context, Empty, numLocalParameters,
+                               numRequirement);
       break;
     }
 

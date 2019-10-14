@@ -141,7 +141,7 @@ bool r41 = requires { 0 noexcept; };
 // expected-error@-1 {{'noexcept' can only be used in a compound requirements (with '{' '}' around the expression)}}
 
 bool r42 = requires { 0 int; };
-// expected-error@-1 {{unexpected int after expression. Did you intend to use a compound requirement? (with '{' '}' around the expression)}}
+// expected-error@-1 {{unexpected int after expression; did you intend to use a compound requirement (with '{' '}' around the expression)?}}
 
 bool r43 = requires { requires true };
 // expected-error@-1 {{expected ';' at end of requirement}}

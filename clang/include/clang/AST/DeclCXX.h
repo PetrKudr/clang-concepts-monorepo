@@ -2114,7 +2114,7 @@ public:
 /// it.
 ///
 /// \code
-/// template<typename T> requires requires (T t) { {t++} -> Regular };
+/// template<typename T> requires requires (T t) { {t++} -> regular; }
 /// \endcode
 ///
 /// In this example, a RequiresExpr object will be generated for the expression,

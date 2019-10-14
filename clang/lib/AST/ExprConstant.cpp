@@ -11250,12 +11250,8 @@ bool IntExprEvaluator::VisitConceptSpecializationExpr(
 }
 
 bool IntExprEvaluator::VisitRequiresExpr(const RequiresExpr *E) {
-  if (E->isValueDependent()) {
-    return Error(E);
-  }
   return Success(E->isSatisfied(), E);
 }
-
 
 bool FixedPointExprEvaluator::VisitUnaryOperator(const UnaryOperator *E) {
   switch (E->getOpcode()) {

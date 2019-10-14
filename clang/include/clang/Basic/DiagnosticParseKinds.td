@@ -757,8 +757,8 @@ def err_requires_expr_simple_requirement_noexcept : Error<
   "'noexcept' can only be used in a compound requirements (with '{' '}' around "
   "the expression)">;
 def err_requires_expr_simple_requirement_unexpected_tok : Error<
-  "unexpected %0 after expression. Did you intend to use a compound "
-  "requirement? (with '{' '}' around the expression)">;
+  "unexpected %0 after expression; did you intend to use a compound "
+  "requirement (with '{' '}' around the expression)?">;
 
 def err_missing_dependent_template_keyword : Error<
   "use 'template' keyword to treat '%0' as a dependent template name">;
